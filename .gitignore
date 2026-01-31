@@ -229,3 +229,8 @@ logs/
 # AI
 **/CLAUDE.md
 **/.claude
+
+
+## specific to this fork
+on_off_target/inference_outputs/
+on_off_target/test/

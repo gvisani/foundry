@@ -1,0 +1,17 @@
+{
+    "magea3": {
+        "dialect": 2,
+        "infer_ori_strategy": "hotspots",
+        "input": "../input_pdbs/5brz_pmhc.pdb",
+        "contig": "A0-180,/0,B1-9,/0,75-85",
+        "select_hotspots": {
+            "B1": "OE1,CD,OE2",
+            "B4": "CB,CG,CD",
+            "B5": "CG1,CD1",
+            "B7": "CE1",
+            "B8": "CD1"
+        },
+        "select_fixed_atoms": "A0-180,B1-9",
+        "is_non_loopy": true
+    }
+}

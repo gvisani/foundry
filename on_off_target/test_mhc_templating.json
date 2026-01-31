@@ -1,0 +1,19 @@
+[
+    {
+        "name": "magea3_fix_bb_fix_side_magea3_0_model_3__mhc_templating",
+        "components": [
+            {
+                "path": "/gscratch/stf/gvisan01/foundry/on_off_target/input_pdbs/5brz_mhc.pdb"
+            },
+            {
+                "chain_id": "B",
+                "seq": "EVDPIGHLY"
+            },
+            {
+                "chain_id": "C",
+                "seq": "AANLVGTAAVLLAAGRLAEAIAAAQAAIAASTDAAVQATALAILGAALAALGQLAAAVAAASQALALDPAHAAALATLADVQAAL"
+            }
+        ],
+        "template_selection": ["A"]
+    }
+]

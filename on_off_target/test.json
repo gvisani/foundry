@@ -1,0 +1,19 @@
+[
+    {
+        "name": "magea3_fix_bb_fix_side_magea3_0_model_3",
+        "components": [
+            {
+                "chain_id": "A",
+                "seq": "GSHSMRYFFTSVSRPGRGEPRFIAVGYVDDTQFVRFDSDAASQKMEPRAPWIEQEGPEYWDQETRNMKAHSQTDRANLGTLRGYYNQSEDGSHTIQIMYGCDVGPDGRFLRGYRQDAYDGKDYIALNEDLRSWTAADMAAQITKRKWEAVHAAEQRRVYLEGRCVDGLRRYLENGKETLQR"
+            },
+            {
+                "chain_id": "B",
+                "seq": "EVDPIGHLY"
+            },
+            {
+                "chain_id": "C",
+                "seq": "AANLVGTAAVLLAAGRLAEAIAAAQAAIAASTDAAVQATALAILGAALAALGQLAAAVAAASQALALDPAHAAALATLADVQAAL"
+            }
+        ]
+    }
+]

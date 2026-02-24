@@ -9,7 +9,7 @@ import argparse
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pdb_dir', type=str, default='./pdbs')
+    parser.add_argument('--pdb_dir', type=str, default='./input_pdbs')
     args = parser.parse_args()
 
     all_files = [filename for filename in os.listdir(args.pdb_dir) if filename.endswith('.pdb')]

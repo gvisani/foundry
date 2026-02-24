@@ -100,6 +100,10 @@ class AADesignTrainer(FabricTrainer):
             "f": example["feats"],
         }
 
+        # Optional: f_alt for alt-guidance (independent feature dict from a second input spec)
+        if "feats_alt" in example:
+            network_input["f_alt"] = example["feats_alt"]
+
         try:
             assert_no_nans(
                 network_input["X_noisy_L"],
@@ -187,7 +191,7 @@ class AADesignTrainer(FabricTrainer):
     def validation_step(
         self,
         batch: Any,
-        batch_idx: int,
+        batch_idx: int, ## unused??
         compute_metrics: bool = True,
     ) -> dict:
         """Validation step, running forward pass and computing validation metrics.
@@ -219,6 +223,7 @@ class AADesignTrainer(FabricTrainer):
         network_output = model.forward(
             input=network_input,
             coord_atom_lvl_to_be_noised=example["coord_atom_lvl_to_be_noised"],
+            coord_atom_lvl_to_be_noised_alt=example["coord_atom_lvl_to_be_noised_alt"] if "coord_atom_lvl_to_be_noised_alt" in example else None,
         )
 
         assert_no_nans(

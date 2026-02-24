@@ -71,12 +71,14 @@ class RFD3(nn.Module):
         self,
         input: dict,
         coord_atom_lvl_to_be_noised: torch.Tensor = None,
+        coord_atom_lvl_to_be_noised_alt: torch.Tensor = None,
         n_cycle=None,
         **_,
     ) -> dict:
         initializer_outputs = self.token_initializer(input["f"])
 
         if self.training:
+
             # Single denoising step
             return self.diffusion_module(
                 X_noisy_L=input["X_noisy_L"],
@@ -85,13 +87,22 @@ class RFD3(nn.Module):
                 n_recycle=n_cycle,
                 **initializer_outputs,
             )  # [D, L, 3]
+        
         else:
+
             if self.use_classifier_free_guidance:
                 f_ref = strip_f(input["f"], self.cfg_features)
                 ref_initializer_outputs = self.token_initializer(f_ref)
             else:
                 f_ref = None
                 ref_initializer_outputs = None
+
+            # f_alt guidance: independent feature dict from a second input spec
+            f_alt = input.get("f_alt", None)
+            if f_alt is not None:
+                alt_initializer_outputs = self.token_initializer(f_alt)
+            else:
+                alt_initializer_outputs = None
 
             return self.inference_sampler.sample_diffusion_like_af3(
                 f=input["f"],
@@ -102,4 +113,7 @@ class RFD3(nn.Module):
                 # Forwarded as **kwargs:
                 initializer_outputs=initializer_outputs,
                 ref_initializer_outputs=ref_initializer_outputs,  # for cfg
+                coord_atom_lvl_to_be_noised_alt=coord_atom_lvl_to_be_noised_alt,  # for alt-guidance
+                f_alt=f_alt,  # for alt-guidance
+                alt_initializer_outputs=alt_initializer_outputs,  # for alt-guidance
             )

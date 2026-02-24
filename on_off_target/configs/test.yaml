@@ -1,0 +1,19 @@
+design_spec: test
+rfd3_json_path: /gscratch/stf/gvisan01/foundry/on_off_target/configs/rfd3__${design_spec}.json
+n_diffusion_batches_of_8: 1
+designed_chain: D
+alternative_target:
+  C: ESDPIVAQY
+num_proteinmpnn_samples: 10
+proteinmpnn_temperature: 0.2
+proteinmpnn_temp_dir: /gscratch/stf/gvisan01/foundry/on_off_target/proteinmpnn_temp_dir__${design_spec}/
+use_templating: True
+chain_to_template_path:
+  A: /gscratch/stf/gvisan01/foundry/on_off_target/input_pdbs/5brz_mhc.pdb
+  B: /gscratch/stf/gvisan01/foundry/on_off_target/input_pdbs/5brz_mhc.pdb
+diffusion_dir: /gscratch/stf/gvisan01/foundry/on_off_target/diffusion/${design_spec}/
+folding_dir: /gscratch/stf/gvisan01/foundry/on_off_target/folding/${design_spec}/
+folding_alt_target_dir: /gscratch/stf/gvisan01/foundry/on_off_target/folding/${design_spec}__alt/
+input_json_for_folding: ${folding_dir}${design_spec}__inputs.json
+input_json_for_folding_alt_target: ${folding_alt_target_dir}${design_spec}__alt__inputs.json
+name_to_designed_structure_json: ${folding_dir}${design_spec}__name_to_designed_structure.json

@@ -8,6 +8,8 @@ import textwrap
 from os import PathLike
 from typing import Any, Dict, List
 
+import numpy as np
+import torch
 import yaml
 from atomworks.ml.datasets import MolecularDataset
 from atomworks.ml.transforms.base import Compose, Transform
@@ -16,16 +18,121 @@ from rfd3.inference.input_parsing import (
     DesignInputSpecification,
     ensure_input_is_abspath,
 )
+from rfd3.inference.parsing import InputSelection
 from torch.utils.data import (
     DataLoader,
     SequentialSampler,
 )
 
+from foundry.utils.alignment import weighted_rigid_align
 from foundry.utils.datasets import assemble_distributed_loader
 from foundry.utils.ddp import RankedLogger
 
 logger = RankedLogger(__name__, rank_zero_only=True)
 all_ranks_logger = RankedLogger(__name__, rank_zero_only=False)
+
+
+def _align_alt_to_main(data, data_alt, align_on):
+    """
+    Align alt coordinates to main coordinates using rigid body alignment.
+    Modifies data_alt's atom_array coordinates in-place.
+
+    Must be called BEFORE transforms, so that residue numbering is preserved
+    and InputSelection can resolve residue IDs from the original PDB.
+
+    Args:
+        data: main pre-transform pipeline output dict (has "atom_array")
+        data_alt: alt pre-transform pipeline output dict (has "atom_array")
+        align_on:
+            True  → align on all shared fixed CA atoms matched by (chain_id, res_id)
+            dict  → e.g. {"A1-100,B1-50": "C40-140,D1-50"} maps main selections to alt selections;
+                    only CA atoms within each selection are used for alignment
+    """
+    aa_main = data["atom_array"]
+    aa_alt = data_alt["atom_array"]
+
+    if align_on is True:
+        # --- Identity matching mode ---
+        # Build (chain_id, res_id) → index lookup for CA atoms only
+        main_fixed = aa_main.is_motif_atom_with_fixed_coord.astype(bool)
+        alt_fixed = aa_alt.is_motif_atom_with_fixed_coord.astype(bool)
+
+        # Candidates: fixed CA atoms in each structure, indexed by (chain_id, res_id)
+        main_candidates = {
+            (aa_main.chain_id[i], aa_main.res_id[i]): i
+            for i, m in enumerate(main_fixed)
+            if m and aa_main.atom_name[i] == "CA"
+        }
+        alt_candidates = {
+            (aa_alt.chain_id[i], aa_alt.res_id[i]): i
+            for i, m in enumerate(alt_fixed)
+            if m and aa_alt.atom_name[i] == "CA"
+        }
+
+        # Intersection: CA atoms present and fixed in both
+        shared = set(main_candidates.keys()) & set(alt_candidates.keys())
+        assert len(shared) > 0, "No shared fixed CA atoms found for alignment between main and alt structures."
+
+        main_indices = [main_candidates[s] for s in shared]
+        alt_indices = [alt_candidates[s] for s in shared]
+
+    elif isinstance(align_on, dict):
+        # --- Dict mapping mode ---
+        # Each key selects atoms from main, each value selects atoms from alt.
+        # Only CA atoms within each selection are used. Counts must match.
+        main_indices = []
+        alt_indices = []
+
+        for main_sel_str, alt_sel_str in align_on.items():
+            main_sele = InputSelection.from_any(main_sel_str, atom_array=aa_main)
+            alt_sele = InputSelection.from_any(alt_sel_str, atom_array=aa_alt)
+
+            main_idx = np.where(main_sele.mask & (aa_main.atom_name == "CA"))[0]
+            alt_idx = np.where(alt_sele.mask & (aa_alt.atom_name == "CA"))[0]
+
+            assert len(main_idx) == len(alt_idx), (
+                f"Alignment selection mismatch: main '{main_sel_str}' resolved to "
+                f"{len(main_idx)} CA atoms, alt '{alt_sel_str}' resolved to {len(alt_idx)} CA atoms. "
+                f"Both sides must select the same number of CA atoms."
+            )
+
+            main_indices.extend(main_idx.tolist())
+            alt_indices.extend(alt_idx.tolist())
+
+        assert len(main_indices) > 0, "No CA atoms selected for alignment."
+
+    else:
+        raise ValueError(f"Invalid align_on value: {align_on!r}. Must be True or a dict mapping main selections to alt selections.")
+
+    # --- Compute rigid alignment transform from matched atoms ---
+    coords_main = torch.tensor(aa_main.coord[main_indices], dtype=torch.float32)  # [N, 3]
+    coords_alt = torch.tensor(aa_alt.coord[alt_indices], dtype=torch.float32)     # [N, 3]
+
+    # Compute centers of mass for matched atoms
+    center_main = coords_main.mean(dim=0)   # [3]
+    center_alt = coords_alt.mean(dim=0)     # [3]
+
+    # Compute rotation via SVD (same method as weighted_rigid_align)
+    centered_alt = coords_alt - center_alt    # [N, 3]
+    centered_main = coords_main - center_main  # [N, 3]
+
+    C = centered_alt.T @ centered_main  # [3, 3]
+    U, S, V = torch.linalg.svd(C)
+
+    # Ensure proper rotation (det = +1)
+    F_det = torch.eye(3)
+    F_det[-1, -1] = torch.sign(torch.linalg.det(U @ V))
+    R = U @ F_det @ V  # [3, 3]
+
+    # Apply transform to ALL alt atom coordinates (modifies atom array in-place)
+    all_alt_coords = torch.tensor(aa_alt.coord, dtype=torch.float32)  # [L_alt, 3]
+    aligned_all = (all_alt_coords - center_alt) @ R + center_main
+    aa_alt.coord = aligned_all.numpy()
+
+    logger.info(
+        f"Aligned alt structure to main using {len(main_indices)} CA atoms. "
+        f"Mode: {'shared fixed CA atoms' if align_on is True else 'explicit mapping (CA only)'}."
+    )
 
 
 class ContigJsonDataset(MolecularDataset):
@@ -159,16 +266,49 @@ class ContigJsonDataset(MolecularDataset):
         spec = self.data[example_id]
 
         # if 'input' in metadata and not abspath, prepend the source json directory to the file path
+        alt_spec_kwargs = None
         if not isinstance(spec, DesignInputSpecification):
             spec = ensure_input_is_abspath(spec, self.json_path)
             spec["cif_parser_args"] = self.cif_parser_args
+
+            # Extract alt spec before creating the main DesignInputSpecification
+            # (which has extra="forbid" and would reject unknown fields)
+            alt_spec_kwargs = spec.get("alt", None)
+            spec = {k: v for k, v in spec.items() if k != "alt"}
+
             spec = DesignInputSpecification.safe_init(**spec)
 
         # Create pipeline input
         data = spec.to_pipeline_input(example_id=example_id)
 
-        # Apply transforms and return
+        # Build alt features if specified (separate spec, same pipeline)
+        # Alignment must happen BEFORE transforms to preserve original residue numbering.
+        if alt_spec_kwargs is not None:
+            # Extract align_on before safe_init (DesignInputSpecification has extra="forbid")
+            align_on = alt_spec_kwargs.pop("align_on", None)
+            alt_spec_kwargs = ensure_input_is_abspath(alt_spec_kwargs, self.json_path)
+            alt_spec_kwargs["cif_parser_args"] = self.cif_parser_args
+
+            ## hack to ensure that number of designed tokens is the same as the main structure
+            for part in spec.extra['sampled_contig'].split(','):
+                if not any(c.isalpha() for c in part) and part != '/0':
+                    alt_spec_kwargs['contig'] += f'/0,{part}'
+
+            alt_spec = DesignInputSpecification.safe_init(**alt_spec_kwargs)
+            data_alt = alt_spec.to_pipeline_input(example_id=f"{example_id}_alt")
+
+            # Align alt atom array to main BEFORE transforms (preserves original residue numbering)
+            if align_on is not None:
+                _align_alt_to_main(data, data_alt, align_on)
+
+        # Apply transforms
         data = self.transform(data)
+
+        if alt_spec_kwargs is not None:
+            data_alt = self.transform(data_alt)
+            data["feats_alt"] = data_alt["feats"]
+            data["coord_atom_lvl_to_be_noised_alt"] = data_alt["coord_atom_lvl_to_be_noised"]
+
         return data
 
 

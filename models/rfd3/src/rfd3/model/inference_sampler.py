@@ -48,6 +48,7 @@ class SampleDiffusionConfig:
     use_classifier_free_guidance: bool = False
     cfg_scale: float = 2.0
     cfg_t_max: float | None = None
+    alt_scale: float = 0.5 # 0.5 is for two equally-weighted on-targets
 
 
 class SampleDiffusionWithMotif(SampleDiffusionConfig):
@@ -148,8 +149,17 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
         initializer_outputs,
         ref_initializer_outputs: dict[str, Any] | None,
         f_ref: dict[str, Any] | None,
+        coord_atom_lvl_to_be_noised_alt: Float[torch.Tensor, "D L 3"] | None = None, # TODO include the weight here or in the constructor
+        alt_initializer_outputs: dict[str, Any] | None = None,
+        f_alt: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        # Motif setup to recenter the motif at every step
+        
+        using_alt_target = coord_atom_lvl_to_be_noised_alt is not None
+
+        if using_alt_target and self.allow_realignment:
+            raise NotImplementedError(f"Use of allow_realignment not implemented for alternative targets")
+
+        # Motif setup to recenter the motif at every step ## NOTE do I have to use the version of f_alt as well somehow??
         is_motif_atom_with_fixed_coord = f["is_motif_atom_with_fixed_coord"]
 
         # Book-keeping
@@ -169,13 +179,23 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
             is_motif_atom_with_fixed_coord=is_motif_atom_with_fixed_coord,
         )  # (D, L, 3)
 
+        ## keep track of alt target
+        if using_alt_target:
+            is_motif_atom_with_fixed_coord_alt = f_alt["is_motif_atom_with_fixed_coord"]
+            assert torch.sum(~is_motif_atom_with_fixed_coord_alt).item() == torch.sum(~is_motif_atom_with_fixed_coord).item()
+
         if self.s_jitter_origin > 0.0:
-            X_L[:, is_motif_atom_with_fixed_coord, :] += torch.normal(
+            jitter = torch.normal(
                 mean=0.0,
                 std=self.s_jitter_origin,
                 size=(D, 1, 3),
                 device=X_L.device,
             )
+            X_L[:, is_motif_atom_with_fixed_coord, :] += jitter
+            
+            # apply same jitter to alt coords
+            if using_alt_target:
+                coord_atom_lvl_to_be_noised_alt[:, is_motif_atom_with_fixed_coord_alt, :] += jitter
 
         X_noisy_L_traj = []
         X_denoised_L_traj = []
@@ -192,7 +212,7 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
             assert not X_L.requires_grad, "X_L should not require gradients"
 
             # Apply a random rotation and translation to the structure
-            if self.allow_realignment:
+            if self.allow_realignment: # NOTE: I dont think I can easily do this with multiple conditionings?
                 X_L, _ = centre_random_augment_around_motif(
                     X_L,
                     coord_atom_lvl_to_be_noised,
@@ -295,6 +315,38 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
 
                 # apply CFG
                 delta_L = delta_L + (self.cfg_scale - 1) * (delta_L - delta_L_ref)
+            
+            if using_alt_target:
+
+                X_noisy_L_alt = put_in_alt_target(X_noisy_L, coord_atom_lvl_to_be_noised_alt, is_motif_atom_with_fixed_coord, is_motif_atom_with_fixed_coord_alt)
+
+                # forward pass with alt target
+                outs_alt = diffusion_module(
+                    X_noisy_L=X_noisy_L_alt,  # alt X
+                    t=t_hat.tile(D),
+                    f=f_alt,  # alt f
+                    **alt_initializer_outputs,
+                )
+
+                X_denoised_L_alt = outs_alt["X_L"]
+
+                delta_L_alt = (
+                    X_noisy_L_alt - X_denoised_L_alt
+                ) / t_hat  # gradient of x wrt. t at x_t_hat
+
+                # pad delta_L_alt with zeros to match delta_L (for the unindexed atoms)
+                if delta_L_alt.shape[1] < delta_L.shape[1]:
+                    delta_L_alt = torch.cat(
+                        [
+                            delta_L_alt,
+                            torch.zeros_like(delta_L[:, delta_L_alt.shape[1] :, :]),
+                        ],
+                        dim=1,
+                    )
+
+                # apply (notice that self.alt_scale is applied in the reverse w.r.t. self.cfg_scale)
+                delta_L = delta_L * (1 - self.alt_scale) + delta_L_alt * self.alt_scale
+
 
             if exists(outs.get("sequence_logits_I")):
                 # Compute confidence
@@ -645,3 +697,16 @@ def centre_random_augment_around_motif(
     X_L = rot_vec_mul(R[:, None], X_L) + noise
 
     return X_L, R
+
+
+def put_in_alt_target(
+    X_L: torch.Tensor, # (D, L, 3) noisy diffused coordinates, with main target,
+    coord_atom_lvl_to_be_noised_alt: torch.Tensor, # (D, L', 3) coords of alt target
+    is_motif_atom_with_fixed_coord: torch.Tensor, # (D, L) indices in main coordinates to be kept constant
+    is_motif_atom_with_fixed_coord_alt: torch.Tensor, # (D, L') indices in alt coordinates to be kept constant
+) -> torch.Tensor: # (D, L', 3) has noisy coords for designed portion, alt fixed coords
+    X_alt_L = coord_atom_lvl_to_be_noised_alt
+    X_alt_L[:, ~is_motif_atom_with_fixed_coord_alt, :] = X_L[:, ~is_motif_atom_with_fixed_coord, :] # TODO dumb type mismatch error (BFloat16 vs Float) easy to fix I'm sure
+    return X_alt_L
+
+

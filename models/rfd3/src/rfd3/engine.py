@@ -209,6 +209,7 @@ class RFD3InferenceEngine(BaseInferenceEngine):
         n_batches: int | None = None,
         out_dir: str | PathLike | None = None,
     ):
+        
         self._set_out_dir(out_dir)
         inputs = self._canonicalize_inputs(inputs)
         design_specifications = self._multiply_specifications(
@@ -273,6 +274,7 @@ class RFD3InferenceEngine(BaseInferenceEngine):
 
     def _model_forward(self, pipeline_output) -> List[RFD3Output]:
         # Wraps around the trainer validation step to create atom arrays for saving.
+        print("inside engine._model_forward...", flush=True)
         t0 = time.time()
         with torch.no_grad():
             pipeline_output = self.trainer.fabric.to_device(pipeline_output)

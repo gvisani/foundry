@@ -51,32 +51,8 @@ def _align_alt_to_main(data, data_alt, align_on):
     aa_main = data["atom_array"]
     aa_alt = data_alt["atom_array"]
 
-    if align_on is True:
-        # --- Identity matching mode ---
-        # Build (chain_id, res_id) → index lookup for CA atoms only
-        main_fixed = aa_main.is_motif_atom_with_fixed_coord.astype(bool)
-        alt_fixed = aa_alt.is_motif_atom_with_fixed_coord.astype(bool)
 
-        # Candidates: fixed CA atoms in each structure, indexed by (chain_id, res_id)
-        main_candidates = {
-            (aa_main.chain_id[i], aa_main.res_id[i]): i
-            for i, m in enumerate(main_fixed)
-            if m and aa_main.atom_name[i] == "CA"
-        }
-        alt_candidates = {
-            (aa_alt.chain_id[i], aa_alt.res_id[i]): i
-            for i, m in enumerate(alt_fixed)
-            if m and aa_alt.atom_name[i] == "CA"
-        }
-
-        # Intersection: CA atoms present and fixed in both
-        shared = set(main_candidates.keys()) & set(alt_candidates.keys())
-        assert len(shared) > 0, "No shared fixed CA atoms found for alignment between main and alt structures."
-
-        main_indices = [main_candidates[s] for s in shared]
-        alt_indices = [alt_candidates[s] for s in shared]
-
-    elif isinstance(align_on, dict):
+    if isinstance(align_on, dict):
         # --- Dict mapping mode ---
         # Each key selects atoms from main, each value selects atoms from alt.
         # Only CA atoms within each selection are used. Counts must match.
@@ -102,7 +78,7 @@ def _align_alt_to_main(data, data_alt, align_on):
         assert len(main_indices) > 0, "No CA atoms selected for alignment."
 
     else:
-        raise ValueError(f"Invalid align_on value: {align_on!r}. Must be True or a dict mapping main selections to alt selections.")
+        raise ValueError(f"Invalid align_on value: {align_on!r}. Must be a dict mapping main selections to alt selections.")
 
     # --- Compute rigid alignment transform from matched atoms ---
     coords_main = torch.tensor(aa_main.coord[main_indices], dtype=torch.float32)  # [N, 3]

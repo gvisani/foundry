@@ -1,0 +1,25 @@
+{
+    "magea3": {
+        "dialect": 2,
+        "infer_ori_strategy": "hotspots",
+        "input": "./input_pdbs/5brz_pmhc.pdb",
+        "contig": "A1-275,/0,B1-100,/0,C1-9,/0,75-85",
+        "select_hotspots": {
+            "C1": "OE1,CD,OE2",
+            "C4": "CB,CG,CD",
+            "C5": "CG1,CD1",
+            "C7": "CE1",
+            "C8": "CD1"
+        },
+        "select_fixed_atoms": "A1-275,B1-100,C1-9",
+        "is_non_loopy": true,
+        "alt": {
+            "dialect": 2,
+            "input": "./input_pdbs/5bs0_pmhc.pdb",
+            "contig": "A1-275,/0,B1-100,/0,C1-9",
+            "select_fixed_atoms": "A1-275,B1-100,C1-9",
+            "is_non_loopy": true,
+            "align_on": {"A1-275,B1-100": "A1-275,B1-100"}
+        }
+    }
+}

@@ -2,7 +2,7 @@ design_spec: test_with_alt_off_targets
 rfd3_json_path: /gscratch/stf/gvisan01/foundry/on_off_target/configs/rfd3__test_with_alt.json
 n_diffusion_batches_of_8: 1
 designed_chain: D
-alt_scale: -0.75
+alt_scale: -2.0
 alternative_target:
   C: ESDPIVAQY
 num_proteinmpnn_samples: 1

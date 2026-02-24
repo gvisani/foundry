@@ -1,9 +1,14 @@
 
+## Multi target binder design experiments - Gian Marco Visani
+
+This is code to run binder design pipelines composed of RFD3 + ProteinMPNN + RF3, where RF3 can be run with an alternative target to evaluate the binders on secondary-target effects. RFD3 can be run with multiple targets, controlling whether the two are on-targets or one is an off-target via the alt_scale parameter (0 < alt_scale < 1 means two on-targets, alt_scale < 0 means on/off target)
+
+
 `pipeline.sh` runs the whole design pipeline:
 1) RFD3 on the main on-target
-2) ProteinMPNN on the structural samples, with the on-target, to generate final binder designs
-3) RF3 on the designs with the on-target + metrics
-4) RF3 on the designs with the off-target + metrics
+2) ProteinMPNN on the structural samples, with the first-target, to generate final binder designs
+3) RF3 on the designs with the first-target + metrics
+4) RF3 on the designs with the second-target + metrics
 
 
 The space of backbone conformations sampled when allowing the peptide backbone to move around is pretty ludicrous. I am not quite sure it makes a lot of sense. I would avoid it for the time being. Perhaps the sampling schedule can be tuned to be just right, but it's beyond the scope of what I want to do here.

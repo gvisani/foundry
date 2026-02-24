@@ -42,6 +42,11 @@ if __name__ == '__main__':
 
     cfg = OmegaConf.load(args.config)
 
+    if "alt_scale" in cfg:
+        alt_scale = cfg.alt_scale
+    else:
+        alt_scale = 0.5
+
     command = f"rfd3 design"
     # command = f"python /gscratch/stf/gvisan01/foundry/models/rfd3/src/rfd3/run_inference.py"
     command += f" out_dir={cfg.diffusion_dir}"
@@ -50,6 +55,7 @@ if __name__ == '__main__':
     command += f" n_batches={cfg.n_diffusion_batches_of_8}"
     command += f" inference_sampler.step_scale=3"
     command += f" inference_sampler.gamma_0=0.2"
+    command += f" inference_sampler.alt_scale={alt_scale}"
     command += f" inference_sampler.use_classifier_free_guidance=False" # CFG adds the unconditional velocity!
 
     print('-'* 40)

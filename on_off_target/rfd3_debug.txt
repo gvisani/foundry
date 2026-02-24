@@ -1,3 +1,0 @@
-In RFD3 forward at *inference* time
-----------------------------------------In RFD3 forward at *inference* time
-----------------------------------------

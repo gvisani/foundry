@@ -48,7 +48,7 @@ class SampleDiffusionConfig:
     use_classifier_free_guidance: bool = False
     cfg_scale: float = 2.0
     cfg_t_max: float | None = None
-    alt_scale: float = 0.5 # 0.5 is for two equally-weighted on-targets
+    alt_scale: float = 0.5 # use 0.5 is for two equally-weighted on-targets, use a negative value for considering alt an off-target
 
 
 class SampleDiffusionWithMotif(SampleDiffusionConfig):
@@ -316,6 +316,7 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
                 # apply CFG
                 delta_L = delta_L + (self.cfg_scale - 1) * (delta_L - delta_L_ref)
             
+
             if using_alt_target:
 
                 X_noisy_L_alt = put_in_alt_target(X_noisy_L, coord_atom_lvl_to_be_noised_alt, is_motif_atom_with_fixed_coord, is_motif_atom_with_fixed_coord_alt)
@@ -334,18 +335,9 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
                     X_noisy_L_alt - X_denoised_L_alt
                 ) / t_hat  # gradient of x wrt. t at x_t_hat
 
-                # pad delta_L_alt with zeros to match delta_L (for the unindexed atoms)
-                if delta_L_alt.shape[1] < delta_L.shape[1]:
-                    delta_L_alt = torch.cat(
-                        [
-                            delta_L_alt,
-                            torch.zeros_like(delta_L[:, delta_L_alt.shape[1] :, :]),
-                        ],
-                        dim=1,
-                    )
-
                 # apply (notice that self.alt_scale is applied in the reverse w.r.t. self.cfg_scale)
-                delta_L = delta_L * (1 - self.alt_scale) + delta_L_alt * self.alt_scale
+                # TODO this might not be working... it's a tough part
+                delta_L[:, ~is_motif_atom_with_fixed_coord, :] = delta_L[:, ~is_motif_atom_with_fixed_coord, :] * (1 - self.alt_scale) + delta_L_alt[:, ~is_motif_atom_with_fixed_coord_alt, :] * self.alt_scale
 
 
             if exists(outs.get("sequence_logits_I")):
@@ -705,7 +697,7 @@ def put_in_alt_target(
     is_motif_atom_with_fixed_coord: torch.Tensor, # (D, L) indices in main coordinates to be kept constant
     is_motif_atom_with_fixed_coord_alt: torch.Tensor, # (D, L') indices in alt coordinates to be kept constant
 ) -> torch.Tensor: # (D, L', 3) has noisy coords for designed portion, alt fixed coords
-    X_alt_L = coord_atom_lvl_to_be_noised_alt
+    X_alt_L = coord_atom_lvl_to_be_noised_alt.clone().float()
     X_alt_L[:, ~is_motif_atom_with_fixed_coord_alt, :] = X_L[:, ~is_motif_atom_with_fixed_coord, :] # TODO dumb type mismatch error (BFloat16 vs Float) easy to fix I'm sure
     return X_alt_L
 

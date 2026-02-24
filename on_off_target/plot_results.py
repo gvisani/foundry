@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
     ## plot distribution of refolding RMSD, ipTM, and binder-peptide PAE
 
-    for design_spec in ['magea3_fix_bb_fix_side', 'magea3_fix_bb_fix_side__alt']:
+    for design_spec in ['test_with_alt', 'test_with_alt__alt']: # ['magea3_fix_bb_fix_side', 'magea3_fix_bb_fix_side__alt']:
         
         input_dir = f'./folding/{design_spec}/'
 

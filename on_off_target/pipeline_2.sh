@@ -1,7 +1,7 @@
 
 # config=./configs/magea3_fix_bb_fix_side_cfg.yaml
 
-config=./configs/test_with_alt_on_targets.yaml
+config=./configs/test_with_alt.yaml
 
 
 # python rfd3_design.py --config $config

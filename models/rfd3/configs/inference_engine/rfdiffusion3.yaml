@@ -45,6 +45,7 @@ inference_sampler:
   gamma_0: 0.6  # Previously 1.0  | 0.0 for ODE sampling
   gamma_min: 1.0
   s_jitter_origin: 0.0  # Sigma of gaussian noise to jitter the motif offset (equivalent to ORI token Jitter)
+  alt_scale: 0.5  # Weight for alternative target; 0.5 = equally weighted, negative = off-target
 
 # Saving args
 cleanup_guideposts: True

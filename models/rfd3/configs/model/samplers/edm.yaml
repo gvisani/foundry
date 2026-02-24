@@ -15,6 +15,7 @@ step_scale: 1.5
 allow_realignment: False
 use_classifier_free_guidance: False
 cfg_scale: 1.5
+alt_scale: 0.5  # Weight for alternative target; 0.5 = equally weighted, negative = off-target
 cfg_features: # CFG_features will be set to 0 in the unconditional CFG step
   - ref_atomwise_rasa
   - active_donor

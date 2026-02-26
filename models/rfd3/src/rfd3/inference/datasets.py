@@ -265,6 +265,11 @@ class ContigJsonDataset(MolecularDataset):
             alt_spec_kwargs = ensure_input_is_abspath(alt_spec_kwargs, self.json_path)
             alt_spec_kwargs["cif_parser_args"] = self.cif_parser_args
 
+            for part in alt_spec_kwargs['contig'].split(','):
+                if part != '/0':
+                    if not any(c.isalpha() for c in part):
+                        raise ValueError('contig for alt target should * not * contain any designed chains')
+            
             ## hack to ensure that number of designed tokens is the same as the main structure
             for part in spec.extra['sampled_contig'].split(','):
                 if not any(c.isalpha() for c in part) and part != '/0':

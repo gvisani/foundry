@@ -33,13 +33,11 @@ To include the presence of an additional target, specify it in the field "alt", 
             "C7": "CE1",
             "C8": "CD1"
         },
-        "select_fixed_atoms": "A1-275,B1-100,C1-9",
         "is_non_loopy": true,
         "alt": {
             "dialect": 2,
             "input": "./input_pdbs/5bs0_pmhc.pdb",
             "contig": "A1-275,/0,B1-100,/0,C1-9",
-            "select_fixed_atoms": "A1-275,B1-100,C1-9",
             "is_non_loopy": true,
             "align_on": {"A1-275,B1-100": "A1-275,B1-100"}
         }
@@ -53,4 +51,16 @@ Notable differences are as follows:
 2. "align_on", if present, prompts the code to align the main (key) and alt (value) "input" structures along the specified residues' CA atoms. In the example above, residues "A1-275,B1-100" of the main structure are aligned with the "A1-275,B1-100" residues of alt structure. While chains are resnums match in this example, they do not need to be; the only requirement is that the number of residues match. For example, a valid specification would be {"A10-22": "B35-47"}, but {"A10-22": "B35-48"} would be invalid and an error will be thrown.
 
 The guidance parameter `alt_scale` can be set as a command-line argument to `rfd3 design`, e.g. `inference_sampler.alt_scale=0.5`, just like for the analogous CFG parameter.
+
+
+## Limitations
+
+Currently, this option works only if the targets are completely fixed, without any flexible parts. For example, this implies the user **cannot** specify flexible side-chains or whole residues:
+```json
+    "select_fixed_atoms": {
+        "C2": "BKBN",
+        "C3": []
+    }
+```
+This ability is still underdevelopment.
 

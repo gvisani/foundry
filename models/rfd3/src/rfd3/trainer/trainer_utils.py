@@ -97,6 +97,7 @@ def _build_atom_array_stack(
             ):
                 # Set residue names
                 diffused_mask = ~atom_array.is_motif_atom_with_fixed_seq
+
                 three_letter_sequence = sequence_encoding.decode(
                     seq_indices.cpu().numpy().astype(int)
                 )  # [I]
@@ -117,7 +118,7 @@ def _build_atom_array_stack(
                     atom_array, association_scheme=association_scheme
                 )
                 array_list.append(atom_array)
-
+    
     # Return as list
     atom_array_stack = array_list
 

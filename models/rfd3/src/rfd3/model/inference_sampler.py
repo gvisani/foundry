@@ -159,8 +159,9 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
         if using_alt_target and self.allow_realignment:
             raise NotImplementedError(f"Use of allow_realignment not implemented for alternative targets")
 
-        # Motif setup to recenter the motif at every step ## NOTE do I have to use the version of f_alt as well somehow??
+        # Motif setup to recenter the motif at every step
         is_motif_atom_with_fixed_coord = f["is_motif_atom_with_fixed_coord"]
+        is_motif_atom_with_fixed_seq = f["is_motif_atom_with_fixed_seq"]
 
         # Book-keeping
         noise_schedule = self._construct_inference_noise_schedule(
@@ -182,7 +183,33 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
         ## keep track of alt target
         if using_alt_target:
             is_motif_atom_with_fixed_coord_alt = f_alt["is_motif_atom_with_fixed_coord"]
-            assert torch.sum(~is_motif_atom_with_fixed_coord_alt).item() == torch.sum(~is_motif_atom_with_fixed_coord).item()
+            is_motif_atom_with_fixed_seq_alt = f_alt["is_motif_atom_with_fixed_seq"]
+            # print()
+            # print(dict(f).keys())
+            # print(f["is_motif_atom_with_fixed_coord"].sum().item(), f["is_motif_atom_with_fixed_seq"].sum().item())
+            # print(f_alt["is_motif_atom_with_fixed_coord"].sum().item(), f_alt["is_motif_atom_with_fixed_seq"].sum().item())
+            # print(torch.logical_and(f["is_motif_atom_with_fixed_seq"], ~f["is_motif_atom_with_fixed_coord"]).sum().item())
+            # print(torch.logical_and(f_alt["is_motif_atom_with_fixed_seq"], ~f_alt["is_motif_atom_with_fixed_coord"]).sum().item())
+            # print()
+            # print(torch.sum(~is_motif_atom_with_fixed_coord_alt).item(), torch.sum(~is_motif_atom_with_fixed_coord).item())
+            # exit(1)
+            # assert torch.sum(~is_motif_atom_with_fixed_coord_alt).item() == torch.sum(~is_motif_atom_with_fixed_coord).item()
+            assert torch.sum(~is_motif_atom_with_fixed_seq_alt).item() == torch.sum(~is_motif_atom_with_fixed_seq).item()
+            # assert torch.sum(~is_motif_atom_with_fixed_seq_alt).item() == torch.sum(~is_motif_atom_with_fixed_coord_alt).item() # alt target not flexible
+
+            L_alt = f_alt["ref_element"].shape[0]
+            X_L_alt = self._get_initial_structure(
+                c0=noise_schedule[0],
+                D=D,
+                L=L_alt,
+                coord_atom_lvl_to_be_noised=coord_atom_lvl_to_be_noised_alt.clone(),
+                is_motif_atom_with_fixed_coord=is_motif_atom_with_fixed_coord_alt,
+            )  # (D, L_alt, 3)
+        else:
+            # defaulkt output if there is no alt target
+            X_L_alt = None
+            sequence_logits_I_alt = None
+            sequence_indices_I_alt = None
 
         if self.s_jitter_origin > 0.0:
             jitter = torch.normal(
@@ -195,7 +222,7 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
             
             # apply same jitter to alt coords
             if using_alt_target:
-                coord_atom_lvl_to_be_noised_alt[:, is_motif_atom_with_fixed_coord_alt, :] += jitter
+                X_L_alt[:, is_motif_atom_with_fixed_coord_alt, :] += jitter
 
         X_noisy_L_traj = []
         X_denoised_L_traj = []
@@ -319,7 +346,23 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
 
             if using_alt_target:
 
-                X_noisy_L_alt = put_in_alt_target(X_noisy_L, coord_atom_lvl_to_be_noised_alt, is_motif_atom_with_fixed_coord, is_motif_atom_with_fixed_coord_alt)
+                # seq_fixed_coord_flex = torch.logical_and(is_motif_atom_with_fixed_seq_alt, ~is_motif_atom_with_fixed_coord_alt)
+                # print(X_L_alt[:, ~seq_fixed_coord_flex, :])
+
+                # Noise the coordinates with scaled Gaussian noise
+                epsilon_L_alt = (
+                    self.noise_scale
+                    * torch.sqrt(torch.square(t_hat) - torch.square(c_t_minus_1))
+                    * torch.normal(mean=0.0, std=1.0, size=X_L_alt.shape, device=X_L_alt.device)
+                )
+                epsilon_L_alt[..., is_motif_atom_with_fixed_coord_alt, :] = (
+                    0  # No noise injection for fixed atoms
+                )
+                X_noisy_L_alt = X_L_alt + epsilon_L_alt
+
+                ## put designed sequence part into input with alt target
+                # X_noisy_L_alt = X_noisy_L_alt.float()
+                X_noisy_L_alt[:, ~is_motif_atom_with_fixed_seq_alt, :] = X_L[:, ~is_motif_atom_with_fixed_seq, :]
 
                 # forward pass with alt target
                 outs_alt = diffusion_module(
@@ -336,8 +379,17 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
                 ) / t_hat  # gradient of x wrt. t at x_t_hat
 
                 # apply (notice that self.alt_scale is applied in the reverse w.r.t. self.cfg_scale)
-                # TODO this might not be working... it's a tough part
-                delta_L[:, ~is_motif_atom_with_fixed_coord, :] = delta_L[:, ~is_motif_atom_with_fixed_coord, :] * (1 - self.alt_scale) + delta_L_alt[:, ~is_motif_atom_with_fixed_coord_alt, :] * self.alt_scale
+                delta_L[:, ~is_motif_atom_with_fixed_seq, :] = delta_L[:, ~is_motif_atom_with_fixed_seq, :] * (1 - self.alt_scale) + delta_L_alt[:, ~is_motif_atom_with_fixed_seq_alt, :] * self.alt_scale
+
+                # Update the alt coordinates, scaled by the step size
+                # note that this will really only change anything for the atoms in the target (fixed seq) that are being redesigned (*not* fixed coord)
+                delta_L_alt[:, ~is_motif_atom_with_fixed_seq_alt, :] = delta_L[:, ~is_motif_atom_with_fixed_seq, :] * (1 - self.alt_scale) + delta_L_alt[:, ~is_motif_atom_with_fixed_seq_alt, :] * self.alt_scale
+                
+                X_L_alt = X_noisy_L_alt + step_scale * d_t * delta_L_alt
+
+                ## TODO these may be different from the sequences inside of outs, we might need to stitch them in
+                sequence_logits_I_alt = outs_alt.get("sequence_logits_I")  # (D, I_alt, 32)
+                sequence_indices_I_alt = outs_alt.get("sequence_indices_I")  # (D, I_alt, 32)
 
 
             if exists(outs.get("sequence_logits_I")):
@@ -377,13 +429,17 @@ class SampleDiffusionWithMotif(SampleDiffusionConfig):
                 X_exists_L=is_motif_atom_with_fixed_coord,
             )
 
+
         return dict(
             X_L=X_L,  # (D, L, 3)
             X_noisy_L_traj=X_noisy_L_traj,  # list[Tensor[D, L, 3]]
             X_denoised_L_traj=X_denoised_L_traj,  # list[Tensor[D, L, 3]]
+            X_L_alt=X_L_alt,  # (D, L_alt, 3) or None
             t_hats=t_hats,  # list[Tensor[D]], where D is shared across all diffusion batches
             sequence_logits_I=outs.get("sequence_logits_I"),  # (D, I, 32)
             sequence_indices_I=outs.get("sequence_indices_I"),  # (D, I, 32)
+            sequence_logits_I_alt=sequence_logits_I_alt,
+            sequence_indices_I_alt=sequence_indices_I_alt,
             sequence_entropy_traj=sequence_entropy_traj,  # list[Tensor[D, I]]
         )
 
@@ -690,15 +746,5 @@ def centre_random_augment_around_motif(
 
     return X_L, R
 
-
-def put_in_alt_target(
-    X_L: torch.Tensor, # (D, L, 3) noisy diffused coordinates, with main target,
-    coord_atom_lvl_to_be_noised_alt: torch.Tensor, # (D, L', 3) coords of alt target
-    is_motif_atom_with_fixed_coord: torch.Tensor, # (D, L) indices in main coordinates to be kept constant
-    is_motif_atom_with_fixed_coord_alt: torch.Tensor, # (D, L') indices in alt coordinates to be kept constant
-) -> torch.Tensor: # (D, L', 3) has noisy coords for designed portion, alt fixed coords
-    X_alt_L = coord_atom_lvl_to_be_noised_alt.clone().float()
-    X_alt_L[:, ~is_motif_atom_with_fixed_coord_alt, :] = X_L[:, ~is_motif_atom_with_fixed_coord, :] # TODO dumb type mismatch error (BFloat16 vs Float) easy to fix I'm sure
-    return X_alt_L
 
 

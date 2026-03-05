@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass, field
 from os import PathLike
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import yaml
@@ -234,7 +234,7 @@ class RFD3InferenceEngine(BaseInferenceEngine):
             ranked_logger.info(f"Outputs will be written to {out_dir.resolve()}.")
         self.out_dir = out_dir
 
-    def _run_multi(self, specs) -> None | Dict[str, List[RFD3Output]]:
+    def _run_multi(self, specs) -> None | Dict[str, List[RFD3Output | Tuple[RFD3Output, RFD3Output]]]:
         # ==============================================================================
         # Prepare pipeline and inference loader
         # ==============================================================================
@@ -267,12 +267,20 @@ class RFD3InferenceEngine(BaseInferenceEngine):
             output_list = self._model_forward(pipeline_output)
             if self.out_dir:
                 for output in output_list:
-                    output.dump(out_dir=self.out_dir)
+                    if isinstance(output, tuple):
+                        # contains alt target, dump both
+                        if len(output) != 2:
+                            raise ValueError(f"Expected two output elements, one main and one alt, got {len(output)}")
+                        output[0].dump(out_dir=self.out_dir)
+                        output[1].dump(out_dir=self.out_dir)
+                    else:
+                        # no alt
+                        output.dump(out_dir=self.out_dir)
             else:
                 outputs[example_id] = output_list
         return outputs
 
-    def _model_forward(self, pipeline_output) -> List[RFD3Output]:
+    def _model_forward(self, pipeline_output) -> List[RFD3Output | Tuple[RFD3Output, RFD3Output]]:
         # Wraps around the trainer validation step to create atom arrays for saving.
         print("inside engine._model_forward...", flush=True)
         t0 = time.time()
@@ -296,12 +304,18 @@ class RFD3InferenceEngine(BaseInferenceEngine):
 
         outputs = []
         for idx in range(len(output_val["predicted_atom_array_stack"])):
+
             if self.dump_prediction_metadata_json:
                 ckpt = Path(self.ckpt_path)
                 if ckpt.is_symlink():
                     ckpt = ckpt.resolve(strict=True)  # follow symlink to target
                 output_val["prediction_metadata"][idx]["ckpt_path"] = str(ckpt)
                 output_val["prediction_metadata"][idx]["seed"] = self.seed
+
+                # collect alt outputs, if they exist
+                if "alt" in output_val:
+                    output_val["alt"]["prediction_metadata"][idx]["ckpt_path"] = str(ckpt)
+                    output_val["alt"]["prediction_metadata"][idx]["seed"] = self.seed
 
             # Append to outputs
             if self.dump_trajectories:
@@ -321,17 +335,31 @@ class RFD3InferenceEngine(BaseInferenceEngine):
                 denoised_trajectory_stack = None
                 noisy_trajectory_stack = None
 
-            outputs.append(
-                RFD3Output(
-                    example_id=f"{pipeline_output['example_id']}_model_{idx}",
-                    atom_array=output_val["predicted_atom_array_stack"][idx],
-                    metadata=output_val["prediction_metadata"][idx]
-                    if self.dump_prediction_metadata_json
-                    else {},
-                    denoised_trajectory_stack=denoised_trajectory_stack,
-                    noisy_trajectory_stack=noisy_trajectory_stack,
-                )
+            main_output = RFD3Output(
+                example_id=f"{pipeline_output['example_id']}_model_{idx}",
+                atom_array=output_val["predicted_atom_array_stack"][idx],
+                metadata=output_val["prediction_metadata"][idx]
+                if self.dump_prediction_metadata_json
+                else {},
+                denoised_trajectory_stack=denoised_trajectory_stack,
+                noisy_trajectory_stack=noisy_trajectory_stack,
             )
+
+            if "alt" in output_val:
+                outputs.append((
+                    main_output,
+                    RFD3Output(
+                        example_id=f"{pipeline_output['example_id']}_model_{idx}_alt",
+                        atom_array=output_val["alt"]["predicted_atom_array_stack"][idx],
+                        metadata=output_val["alt"]["prediction_metadata"][idx]
+                        if self.dump_prediction_metadata_json
+                        else {},
+                        denoised_trajectory_stack=None,
+                        noisy_trajectory_stack=None,
+                    )
+                ))
+            else:
+                outputs.append(main_output)
 
         ranked_logger.info(f"Finished inference batch in {t_end - t0:.2f} seconds.")
         return outputs

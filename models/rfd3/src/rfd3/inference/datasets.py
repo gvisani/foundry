@@ -265,15 +265,31 @@ class ContigJsonDataset(MolecularDataset):
             alt_spec_kwargs = ensure_input_is_abspath(alt_spec_kwargs, self.json_path)
             alt_spec_kwargs["cif_parser_args"] = self.cif_parser_args
 
+            ## this block ensures that the number of designed tokens in the alt pipeline is the same as the main structure
+            ## any number of designed tokens specified by the user in the alt contig input will be ignored,
+            ## and substituted with the number on the main pipeline *at the end of the alt contig*
+            ## NOTE: this block is designed in this way because it runs for every batch, so it needs to be robust even for the correct alt_spec_kwargs['contig']
+
+            # strip alt contig of any designed portions
+            stripped_contig = []
             for part in alt_spec_kwargs['contig'].split(','):
-                if part != '/0':
-                    if not any(c.isalpha() for c in part):
-                        raise ValueError('contig for alt target should * not * contain any designed chains')
-            
-            ## hack to ensure that number of designed tokens is the same as the main structure
+                if part == '/0' or any(c.isalpha() for c in part):
+                    stripped_contig.append(part)
+            alt_spec_kwargs['contig'] = ','.join(stripped_contig).strip(',/0')
+
+            # add designed porstion equal to main contig
             for part in spec.extra['sampled_contig'].split(','):
                 if not any(c.isalpha() for c in part) and part != '/0':
-                    alt_spec_kwargs['contig'] += f'/0,{part}'
+                    alt_spec_kwargs['contig'] += f',/0,{part}'
+            
+            ## end of block
+
+            ## set as center of mass the same as what was picked for the main design
+            com = data["specification"]["extra"]["com"]
+            if len(com) != 3 or not isinstance(com[0], float):
+                raise ValueError(f"Expected com to have only 3 float coordinates, got {com}")
+            alt_spec_kwargs["ori_token"] = com
+
 
             alt_spec = DesignInputSpecification.safe_init(**alt_spec_kwargs)
             data_alt = alt_spec.to_pipeline_input(example_id=f"{example_id}_alt")
@@ -287,8 +303,9 @@ class ContigJsonDataset(MolecularDataset):
 
         if alt_spec_kwargs is not None:
             data_alt = self.transform(data_alt)
-            data["feats_alt"] = data_alt["feats"]
-            data["coord_atom_lvl_to_be_noised_alt"] = data_alt["coord_atom_lvl_to_be_noised"]
+            # data["feats_alt"] = data_alt["feats"]
+            # data["coord_atom_lvl_to_be_noised_alt"] = data_alt["coord_atom_lvl_to_be_noised"]
+            data["alt"] = data_alt
 
         return data
 

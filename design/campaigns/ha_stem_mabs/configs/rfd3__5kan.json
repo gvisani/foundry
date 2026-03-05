@@ -1,0 +1,33 @@
+{
+    "4fqi_5kan": {
+        "dialect": 2,
+        "infer_ori_strategy": "hotspots",
+        "input": "/gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/input_pdbs/5kan_ab_align_renum.pdb",
+        "contig": "H1-231,/0,L1-214,/0,80",
+        "select_hotspots": {
+            "H54": "CB",
+            "H55": "CB",
+            "H102": "CB",
+            "H103": "CB",
+            "H104": "CB",
+            "H105": "CB",
+            "H106": "CB",
+            "H107": "CB",
+            "H108": "CB",
+            "H109": "CB"
+        },
+        "select_fixed_atoms": {
+            "H54": [],
+            "H55": [],
+            "H102": [],
+            "H103": [],
+            "H104": [],
+            "H105": [],
+            "H106": [],
+            "H107": [],
+            "H108": [],
+            "H109": []
+        },
+        "is_non_loopy": true
+    }
+}

@@ -1,0 +1,53 @@
+{
+    "4fqi_5kan": {
+        "dialect": 2,
+        "infer_ori_strategy": "hotspots",
+        "input": "/gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/input_pdbs/4fqi_ab_align_renum_filled.pdb",
+        "contig": "H1-215,/0,L2-212,/0,80",
+        "select_hotspots": {
+            "H30": "CB",
+            "H31": "CB",
+            "H54": "CB",
+            "H55": "CB",
+            "H56": "CA",
+            "H73": "CB",
+            "H75": "CB",
+            "H76": "CB",
+            "H101": "CB",
+            "H102": "CB",
+            "H103": "CB"
+        },
+        "select_fixed_atoms": {
+            "H30": [],
+            "H31": [],
+            "H54": [],
+            "H55": [],
+            "H56": [],
+            "H73": [],
+            "H75": [],
+            "H76": [],
+            "H101": [],
+            "H102": [],
+            "H103": []
+        },
+        "is_non_loopy": true,
+        "alt": {
+            "dialect": 2,
+            "input": "/gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/input_pdbs/5kan_ab_align_renum.pdb",
+            "contig": "H1-231,/0,L1-214",
+            "is_non_loopy": true,
+            "select_hotspots": {
+                "H54": "CB",
+                "H55": "CB",
+                "H102": "CB",
+                "H103": "CB",
+                "H104": "CB",
+                "H105": "CB",
+                "H106": "CB",
+                "H107": "CB",
+                "H108": "CB",
+                "H109": "CB"
+            }
+        }
+    }
+}

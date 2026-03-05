@@ -511,7 +511,7 @@ class DesignInputSpecification(BaseModel):
         atom_array = self._apply_symmetry(atom_array, atom_array_input_annotated)
 
         # Apply globals to all tokens (including diffused)
-        atom_array = self._set_origin(atom_array)
+        atom_array, com = self._set_origin(atom_array)
         atom_array = self._apply_globals(atom_array)
 
         # Final validation and cleanup
@@ -533,6 +533,7 @@ class DesignInputSpecification(BaseModel):
                 "num_residues": len(
                     np.unique(list(zip(atom_array.chain_id, atom_array.res_id)))
                 ),
+                "com": list(com.astype(float)),
             }
             return copy.deepcopy(atom_array), metadata
 
@@ -703,12 +704,12 @@ class DesignInputSpecification(BaseModel):
                     "Partial diffusion with symmetry: skipping COM centering to preserve chain spacing"
                 )
             else:
-                atom_array = set_com(
+                atom_array, com = set_com(
                     atom_array, ori_token=None, infer_ori_strategy="com"
                 )
         else:
             # Standard: set ori token, zero out diffused atoms
-            atom_array = set_com(
+            atom_array, com = set_com(
                 atom_array,
                 ori_token=self.ori_token,
                 infer_ori_strategy=self.infer_ori_strategy,
@@ -717,7 +718,7 @@ class DesignInputSpecification(BaseModel):
             atom_array.coord[
                 ~atom_array.is_motif_atom_with_fixed_coord.astype(bool)
             ] = 0.0
-        return atom_array
+        return atom_array, com
 
     def _apply_globals(self, atom_array):
         # Temperature conditioning

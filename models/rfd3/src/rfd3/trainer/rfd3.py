@@ -101,8 +101,8 @@ class AADesignTrainer(FabricTrainer):
         }
 
         # Optional: f_alt for alt-guidance (independent feature dict from a second input spec)
-        if "feats_alt" in example:
-            network_input["f_alt"] = example["feats_alt"]
+        if "alt" in example:
+            network_input["f_alt"] = example["alt"]["feats"]
 
         try:
             assert_no_nans(
@@ -223,7 +223,7 @@ class AADesignTrainer(FabricTrainer):
         network_output = model.forward(
             input=network_input,
             coord_atom_lvl_to_be_noised=example["coord_atom_lvl_to_be_noised"],
-            coord_atom_lvl_to_be_noised_alt=example["coord_atom_lvl_to_be_noised_alt"] if "coord_atom_lvl_to_be_noised_alt" in example else None,
+            coord_atom_lvl_to_be_noised_alt=example["alt"]["coord_atom_lvl_to_be_noised"] if "alt" in example else None,
         )
 
         assert_no_nans(
@@ -272,13 +272,26 @@ class AADesignTrainer(FabricTrainer):
             network_output = apply_to_collection(
                 network_output, torch.Tensor, lambda x: x.detach()
             )
-
-        return {
+        
+        return_dict = {
             "metrics_output": metrics_output,
             "network_output": network_output,
             "predicted_atom_array_stack": predicted_atom_array_stack,
             "prediction_metadata": prediction_metadata,
         }
+        
+        if "alt" in example:
+            # ... Convert output to a stack of atom arrays - for alt target
+            predicted_atom_array_stack_alt, prediction_metadata_alt = (
+                self._build_predicted_atom_array_stack(network_output, example, True)
+            )
+            return_dict["alt"] = {
+                "predicted_atom_array_stack": predicted_atom_array_stack_alt,
+                "prediction_metadata": prediction_metadata_alt,
+            }
+
+        return return_dict
+
 
     def _assemble_loss_extra_info(self, example: dict) -> dict:
         """Assembles metadata arguments to the loss function (incremental to the network inputs and outputs)."""
@@ -338,8 +351,18 @@ class AADesignTrainer(FabricTrainer):
         return {**metrics_extra_info}
 
     def _build_predicted_atom_array_stack(
-        self, network_output: dict, example: dict
+        self, network_output: dict, example: dict, alt_target: bool = False
     ) -> Union[AtomArrayStack, List[AtomArray]]:
+        if alt_target:
+            example = example["alt"]
+            struc_key = "X_L_alt"
+            seq_logits_key = "sequence_logits_I_alt"
+            seq_indices_key = "sequence_indices_I_alt"
+        else:
+            struc_key = "X_L"
+            seq_logits_key = "sequence_logits_I"
+            seq_indices_key = "sequence_indices_I"
+
         atom_array = example["atom_array"]
         f = example["feats"]
 
@@ -352,10 +375,10 @@ class AADesignTrainer(FabricTrainer):
 
         # ... Build output atom array stack
         atom_array_stack = _build_atom_array_stack(
-            network_output["X_L"],
+            network_output[struc_key],
             atom_array,
-            sequence_logits=network_output.get("sequence_logits_I"),
-            sequence_indices=network_output.get("sequence_indices_I"),
+            sequence_logits=network_output.get(seq_logits_key),
+            sequence_indices=network_output.get(seq_indices_key),
             allow_sequence_outputs=self.allow_sequence_outputs,
             read_sequence_from_sequence_head=self.read_sequence_from_sequence_head,
             association_scheme=self.association_scheme,

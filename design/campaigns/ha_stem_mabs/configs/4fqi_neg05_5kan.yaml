@@ -1,0 +1,24 @@
+design_spec: 4fqi_neg05_5kan
+rfd3_json_path: /gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/configs/rfd3__4fqi_5kan.json
+n_diffusion_batches_of_8: 5
+designed_chain: C
+alt_scale: -0.5
+num_proteinmpnn_samples: 0
+proteinmpnn_temperature: 0.2
+proteinmpnn_temp_dir: /gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/proteinmpnn_temp_dir__${design_spec}/
+alternative_target:
+  A: QVQLAQSENELKKPGASVKVSCKTSGYTFTRFGMSWVRQAPGQGLEWMGWISGYTGDTKYARSFQGRLTLTTDTSTGTAYMELRSLRSDDTAIYYCVRNRVQMEVSPATQSTWYMDLWGRGTLVSVSSPSTKGPSVFPLAPSSKSTSGGTAALGCLVKDYFPEPVTVSWNSGALTSGVHTFPAVLQSSGLYSLSSVVTVPSSSLGTQTYICNVNHKPSNTKVDKKVEPKSC
+  B: DIQMTQVPVSLSAFVGDRVSITCRASQDISRWLAWYQQKPGRAPKLLIYAASSLQGGVPSRFRGSGSGTEFTLTISGLQPEDFATYYCQQGSTFPYTSVLGTILGIPGTVAAPSVFIFPPSDEQLKSGTASVVCLLNNFYPREAKVQWKVDNALQSGNSQESVTEQDSKDSTYSLSSTLTLSKADYEKHKVYACEVTHQGLRSPVTKSFNRGEC
+use_templating: True
+templating:
+  paths: [/gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/input_pdbs/4fqi_ab_align_renum_filled_renamed.pdb]
+  template_selection: ["B", "A/*/1-29", "A/*/32-53", "A/*/57-72", "A/*/74", "A/*/77-100", "A/*/104-215"]
+templating_alt_target:
+  paths: [/gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/input_pdbs/5kan_ab_align_renum_renamed.pdb]
+  template_selection: ["B", "A/*/1-53", "A/*/56-101", "A/*/110-231"]
+diffusion_dir: /gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/diffusion/${design_spec}/
+folding_dir: /gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/folding/${design_spec}/
+folding_alt_target_dir: /gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/folding/${design_spec}__alt/
+input_json_for_folding: ${folding_dir}${design_spec}__inputs.json
+input_json_for_folding_alt_target: ${folding_alt_target_dir}${design_spec}__alt__inputs.json
+name_to_designed_structure_json: ${folding_dir}${design_spec}__name_to_designed_structure.json

@@ -505,7 +505,9 @@ def set_com(
             atom_array.coord = np.zeros_like(
                 atom_array.coord, dtype=atom_array.coord.dtype
             )
-    return atom_array
+            center = np.mean(atom_array, axis=0)
+    
+    return atom_array, center
 
 
 #################################################################################

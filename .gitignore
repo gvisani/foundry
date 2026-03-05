@@ -232,8 +232,5 @@ logs/
 
 
 ## specific to this fork
-on_off_target/inference_outputs*/
-on_off_target/folding_output*/
-on_off_target/test/
-on_off_target/diffusion*/
-on_off_target/folding*/
+**/diffusion*/
+**/folding*/

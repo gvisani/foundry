@@ -3,7 +3,7 @@ rfd3_json_path: /gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/con
 n_diffusion_batches_of_8: 5
 designed_chain: C
 alt_scale: 0.0
-num_proteinmpnn_samples: 0
+num_proteinmpnn_samples: 4
 proteinmpnn_temperature: 0.2
 proteinmpnn_temp_dir: /gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_mabs/proteinmpnn_temp_dir__${design_spec}/
 alternative_target:
@@ -22,3 +22,4 @@ folding_alt_target_dir: /gscratch/stf/gvisan01/foundry/design/campaigns/ha_stem_
 input_json_for_folding: ${folding_dir}${design_spec}__inputs.json
 input_json_for_folding_alt_target: ${folding_alt_target_dir}${design_spec}__alt__inputs.json
 name_to_designed_structure_json: ${folding_dir}${design_spec}__name_to_designed_structure.json
+name_to_designed_structure_json_alt_target: ${folding_alt_target_dir}${design_spec}__name_to_designed_structure_alt.json

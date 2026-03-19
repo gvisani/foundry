@@ -149,3 +149,90 @@ if __name__ == '__main__':
     plt.close()
 
 
+    ## plot distribution of refolding RMSD, ipTM, and binder-peptide PAE
+
+    design_spec_to_rf3_metrics = {}
+
+    for design_spec in ['4fqi_5kan', '4fqi_5kan__alt', '4fqi', '4fqi__alt', '5kan', '5kan__alt']:
+        
+        input_dir = f'./folding/{design_spec}/'
+
+        ref_rmsd_list_rfd3 = []
+        iptm_list_rfd3 = []
+
+        ref_rmsd_list = []
+        iptm_list = []
+
+        for pred_dir in os.listdir(input_dir):
+            pred_name = pred_dir
+            pred_dir = os.path.join(input_dir, pred_dir)
+
+            if os.path.isdir(pred_dir):
+
+                if os.path.exists(os.path.join(pred_dir, f'{pred_name}_consistency_metrics.json')):
+                    with open(os.path.join(pred_dir, f'{pred_name}_consistency_metrics.json'), 'r') as f:
+                        metrics = json.load(f)
+                        ref_rmsd = metrics['refolding_rmsd_of_designed_chains']
+                else:
+                    ref_rmsd = None
+
+                with open(os.path.join(pred_dir, f'{pred_name}_summary_confidences.json'), 'r') as f:
+                    metrics = json.load(f)
+                    iptm = metrics['iptm']
+            
+                if pred_name.endswith('rfd3'):
+                    if ref_rmsd is not None:
+                        ref_rmsd_list_rfd3.append(ref_rmsd)
+                    iptm_list_rfd3.append(iptm)
+                else:
+                    if ref_rmsd is not None:
+                        ref_rmsd_list.append(ref_rmsd)
+                    iptm_list.append(iptm)
+        
+        design_spec_to_rf3_metrics[design_spec] = {
+            'iptm': iptm_list,
+            'iptm_rfd3': iptm_list_rfd3,
+            'ref_rmsd': ref_rmsd_list,
+            'ref_rmsd_rfd3': ref_rmsd_list_rfd3
+        }
+    
+    for design_spec in ['4fqi_5kan', '4fqi', '5kan']:
+        
+        fig, axs = plt.subplots(figsize=(9, 4), ncols=2, nrows=1, sharey=True)
+        fontsize = 14
+
+        if design_spec == '5kan':
+            main_color = 'red'
+            alt_color = 'blue'
+            main_target = '5kan'
+            alt_target = '4fqi'
+        else:
+            main_color = 'blue'
+            alt_color = 'red'
+            main_target = '4fqi'
+            alt_target = '5kan'
+
+        metrics = design_spec_to_rf3_metrics[design_spec]
+        metrics_alt = design_spec_to_rf3_metrics[design_spec + '__alt']
+
+        ax = axs[0]
+        ax.hist(metrics['ref_rmsd'], color=main_color, alpha=0.4)
+        ax.hist(metrics_alt['ref_rmsd'], color=alt_color, alpha=0.4)
+        ax.set_title(design_spec, fontsize=fontsize)
+        ax.set_ylabel('Count', fontsize=fontsize)
+        ax.set_xlabel('Refolding RMSD of binder\naligned along the target', fontsize=fontsize)
+        ax.tick_params(labelsize=fontsize-2)
+
+        ax = axs[1]
+        ax.hist(metrics['iptm'], color=main_color, alpha=0.4, label=f'target = {main_target}')
+        ax.hist(metrics_alt['iptm'], color=alt_color, alpha=0.4, label=f'target = {alt_target}')
+        ax.set_title(design_spec, fontsize=fontsize)
+        ax.set_xlabel('ipTM', fontsize=fontsize)
+        ax.tick_params(labelsize=fontsize-2)
+        ax.legend()
+
+        plt.tight_layout()
+        plt.savefig(f'{design_spec}.png')
+        plt.close()
+
+

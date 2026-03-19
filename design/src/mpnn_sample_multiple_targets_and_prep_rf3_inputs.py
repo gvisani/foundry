@@ -26,6 +26,27 @@ def sample_sequences_with_proteinmpnn_multi_target(
         temperature: float,
         temp_dir: str
     ) -> List[str]:
+    '''
+    Inputs:
+        pdbfile_1: structure file (.pbd or .cif) with designed binder and main target
+        pdbfile_2: structure file (.pbd or .cif) with binder and alternative target
+        chain_to_design_1: chainid of binder in structure 1
+        chain_to_design_2: chainid of binder in structure 2
+        num_samples: num protein sequences to sample via ProteinMPNN
+        temperature: ProteinMPNN temperature parameter
+        temp_dir: directory where ProteinMPNN outputs will be stored
+
+    Returns:
+        List of aminoacid sequence samples
+
+    This function will place the two structures in a single temporary structure file, at least 101 Angstroms apart,
+    and then run ProteinMPNN to design `chain_to_design_1` and `chain_to_design_2` with tied logits.
+    It is assumed that the sequences of `chain_to_design_1` and `chain_to_design_2` have the same number of residues,
+    and this function is designed for the use case where they have the same backbone structure as well.
+
+    Note that there is no need to change the chainids in the two structures so that they are not overlapping,
+    as the script will rename chainid accordingly upon merging the structures.
+    '''
 
     os.makedirs(temp_dir, exist_ok=True)
 
